@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安創行政帳戶收支登記系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#1f2430; --muted:#6b7280;
+    --accent:#2f6fed; --accent-light:#eaf1ff; --income:#1a9e5c; --expense:#d64545;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px;
+  }
+  header{
+    background:var(--card); border-bottom:1px solid var(--border); padding:14px 24px;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+  header h1{font-size:18px; margin:0; display:flex; align-items:center; gap:8px;}
+  header h1 span.company{color:var(--accent); cursor:pointer;}
+  .header-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  button{
+    font-family:inherit; font-size:13px; padding:7px 14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); cursor:pointer; transition:.15s;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  button.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
+  button.primary:hover{opacity:.9; color:#fff;}
+  button.danger{color:var(--expense);}
+  button.danger:hover{border-color:var(--expense);}
+  button.small{padding:4px 10px; font-size:12px;}
+  main{max-width:1180px; margin:20px auto; padding:0 20px 60px;}
+  nav.tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;}
+  nav.tabs button{border-radius:20px;}
+  nav.tabs button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:16px;}
+  .summary-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px;}
+  .summary-item{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px;}
+  .summary-item .label{color:var(--muted); font-size:12px; margin-bottom:6px;}
+  .summary-item .value{font-size:20px; font-weight:600;}
+  .summary-item .value.income{color:var(--income);}
+  .summary-item .value.expense{color:var(--expense);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:9px 8px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap;}
+  th{color:var(--muted); font-weight:600; font-size:12px;}
+  td.amount-in{color:var(--income); font-weight:600;}
+  td.amount-out{color:var(--expense); font-weight:600;}
+  td.desc, td.note{white-space:normal; min-width:140px;}
+  tr:hover td{background:#fafbfd;}
+  .table-wrap{overflow-x:auto;}
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px;}
+  .form-grid label{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
+  .form-grid input, .form-grid select, .form-grid textarea{
+    font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid var(--border); border-radius:6px; background:#fff;
+  }
+  .type-toggle{display:flex; gap:6px;}
+  .type-toggle button{flex:1;}
+  .type-toggle button.sel-income.active{background:var(--income); color:#fff; border-color:var(--income);}
+  .type-toggle button.sel-expense.active{background:var(--expense); color:#fff; border-color:var(--expense);}
+  .modal-bg{position:fixed; inset:0; background:rgba(20,20,30,.45); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:50; overflow:auto;}
+  .modal-bg.show{display:flex;}
+  .modal{background:#fff; border-radius:var(--radius); padding:20px; max-width:520px; width:100%;}
+  .modal h2{margin-top:0; font-size:16px;}
+  .modal .row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;}
+  .close-x{background:none; border:none; font-size:18px; cursor:pointer; color:var(--muted);}
+  .tag-list{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;}
+  .tag{background:var(--accent-light); color:var(--accent); border-radius:14px; padding:3px 10px 3px 12px; font-size:12px; display:flex; align-items:center; gap:6px;}
+  .tag button{background:none; border:none; padding:0; font-size:12px; color:var(--accent); cursor:pointer; line-height:1;}
+  .muted{color:var(--muted); font-size:12px;}
+  .empty{padding:30px; text-align:center; color:var(--muted);}
+  .footer-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .search-bar{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .search-bar input, .search-bar select{padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px;}
+  canvas{max-width:100%;}
+  .file-status{font-size:11px; color:var(--muted); margin-top:2px;}
+  .file-status button.linklike{border:none; background:none; padding:0; color:var(--accent); font-size:11px; cursor:pointer; text-decoration:underline;}
+  .connect-modal{max-width:460px; text-align:center;}
+  .connect-modal .footer-actions{justify-content:center;}
+  input[readonly].numpad-input{background:#fbfbfd; cursor:pointer;}
+  .keypad{position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--border);
+    box-shadow:0 -6px 16px rgba(0,0,0,.12); padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    z-index:400; display:none;}
+  .keypad.show{display:block;}
+  .keypad-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:360px; margin:0 auto;}
+  .keypad-grid button{padding:14px 0; font-size:18px; border-radius:8px; border:1px solid var(--border); background:#f7f8fa;}
+  .keypad-grid button.kp-func{background:var(--accent-light); color:var(--accent); font-size:14px;}
+  .keypad-grid button.kp-done{grid-column:span 2; background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;}
+  @media print{
+    header, nav.tabs, .no-print, .modal-bg, .keypad{display:none !important;}
+    body{background:#fff;}
+    .card{border:none; padding:0;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1><img id="companyLogo" src="" alt="" style="vertical-align:middle;margin-right:8px;display:none;"><span class="company" id="companyNameDisplay" title="點擊修改公司名稱">安創行政帳戶收支登記系統</span></h1>
+    <div class="file-status" id="fileStatus">載入中…</div>
+  </div>
+  <div class="header-actions no-print">
+    <button id="btnAdd" class="primary">＋ 新增交易</button>
+    <button id="btnSettings">⚙ 設定</button>
+    <button id="btnExportJSON">匯出備份</button>
+    <button id="btnImportJSON">匯入備份</button>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+    <button id="btnLogout">登出</button>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs" id="tabs"></nav>
+  <div id="content"><div class="empty">載入中…</div></div>
+</main>
+
+<!-- Data file connect screen -->
+<div class="modal-bg" id="connectScreenBg">
+  <div class="modal connect-modal">
+    <h2 id="connectTitle">設定資料儲存檔案</h2>
+    <p class="muted" id="connectDesc">請選擇資料儲存方式。選擇檔案後，之後每次記帳都會直接寫入這個檔案，方便備份與跨電腦使用。</p>
+    <div class="footer-actions" id="connectButtons">
+      <button class="primary" id="btnOpenExisting">開啟現有資料檔</button>
+      <button id="btnCreateNew">建立新的資料檔</button>
+    </div>
+  </div>
+</div>
+
+<!-- Login screen -->
+<div class="modal-bg" id="loginScreenBg">
+  <div class="modal connect-modal">
+    <h2>登入</h2>
+    <p class="muted">此帳本資料已加密，請輸入帳號密碼以解密並開啟。</p>
+    <div class="form-grid" style="text-align:left;">
+      <label>帳號
+        <input type="text" id="loginUsername" autocomplete="username">
+      </label>
+      <label>密碼
+        <input type="password" id="loginPassword" autocomplete="current-password">
+      </label>
+    </div>
+    <div class="muted" id="loginError" style="color:var(--expense);min-height:16px;margin-bottom:6px;"></div>
+    <div class="footer-actions">
+      <button class="primary" id="btnDoLogin">登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- First-time / migration account setup screen -->
+<div class="modal-bg" id="setupAccountScreenBg">
+  <div class="modal connect-modal">
+    <h2>建立管理帳號</h2>
+    <p class="muted" id="setupDesc">首次使用，或偵測到資料尚未加密，請設定管理帳號密碼，之後將以此帳密加密並保護您的帳本資料。</p>
+    <div class="form-grid" style="text-align:left;">
+      <label>帳號
+        <input type="text" id="setupUsername" placeholder="antrendadmin" autocomplete="username">
+      </label>
+      <label>密碼
+        <input type="password" id="setupPassword" placeholder="60650967" autocomplete="new-password">
+      </label>
+      <label>確認密碼
+        <input type="password" id="setupPasswordConfirm" placeholder="60650967" autocomplete="new-password">
+      </label>
+    </div>
+    <p class="muted">留空將使用預設帳號 antrendadmin／預設密碼 60650967，建議登入後於「設定」中修改密碼。</p>
+    <div class="muted" id="setupError" style="color:var(--expense);min-height:16px;margin-bottom:6px;"></div>
+    <div class="footer-actions">
+      <button class="primary" id="btnDoSetupAccount">建立並登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Transaction Modal -->
+<div class="modal-bg" id="txnModalBg">
+  <div class="modal">
+    <div class="row"><h2 id="txnModalTitle">新增交易</h2><button class="close-x" data-close="txnModalBg">✕</button></div>
+    <div class="type-toggle">
+      <button type="button" id="typeIncomeBtn" class="sel-income">收入</button>
+      <button type="button" id="typeExpenseBtn" class="sel-expense">支出</button>
+    </div>
+    <br>
+    <div class="form-grid">
+      <label>日期
+        <input type="date" id="f_date">
+      </label>
+      <label>金額
+        <input type="text" inputmode="decimal" autocomplete="off" class="numpad-input" id="f_amount" placeholder="輸入金額">
+      </label>
+      <label>類別
+        <select id="f_category"></select>
+      </label>
+      <label>付款方式
+        <select id="f_paymethod"></select>
+      </label>
+      <label>發票/單據號碼
+        <input type="text" id="f_invoice" placeholder="選填">
+      </label>
+      <label>廠商 / 客戶
+        <input type="text" id="f_partner" placeholder="選填">
+      </label>
+      <label>稅額
+        <input type="text" inputmode="decimal" autocomplete="off" class="numpad-input" id="f_tax" placeholder="選填">
+      </label>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);margin-bottom:8px;">摘要說明
+      <input type="text" id="f_desc" placeholder="例如：7月份辦公室租金">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);margin-bottom:14px;">備註
+      <textarea id="f_note" rows="2" placeholder="選填"></textarea>
+    </label>
+    <div class="footer-actions">
+      <button class="primary" id="btnSaveTxn">儲存</button>
+      <button id="btnDuplicateTxn" style="display:none;">複製為新交易</button>
+      <button data-close="txnModalBg">取消</button>
+      <button class="danger" id="btnDeleteTxn" style="display:none;margin-left:auto;">刪除此筆</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-bg" id="settingsModalBg">
+  <div class="modal">
+    <div class="row"><h2>系統設定</h2><button class="close-x" data-close="settingsModalBg">✕</button></div>
+    <div class="form-grid">
+      <label>公司名稱
+        <input type="text" id="s_companyName">
+      </label>
+      <label>幣別符號
+        <input type="text" id="s_currency" placeholder="NT$">
+      </label>
+      <label>期初餘額 (第一個月開帳金額)
+        <input type="text" inputmode="decimal" autocomplete="off" class="numpad-input" id="s_initialBalance" placeholder="輸入金額">
+      </label>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="muted" style="margin-bottom:4px;">公司 Logo</div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <div id="logoPreviewWrap" style="width:56px; height:56px; border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fafbfd; flex-shrink:0;">
+          <img id="logoPreview" src="" alt="" style="max-width:100%; max-height:100%; display:none;">
+          <span id="logoPreviewEmpty" class="muted" style="font-size:11px;">無</span>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="small" id="btnUploadLogo">上傳 Logo</button>
+            <button type="button" class="small" id="btnRemoveLogo">移除 Logo</button>
+            <input type="file" id="logoFileInput" accept="image/*" style="display:none">
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:0;">
+            大小
+            <input type="range" id="logoSizeSlider" min="14" max="80" step="1" style="flex:1;">
+            <span id="logoSizeValue" style="width:38px; text-align:right;">24px</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="muted" style="margin-bottom:4px;">資料儲存檔案</div>
+      <div class="muted" id="settingsFileInfo" style="margin-bottom:6px;"></div>
+      <div class="footer-actions" style="margin-top:0;">
+        <button class="small" id="btnSwitchFile">切換為其他資料檔</button>
+        <button class="small" id="btnCreateFileFromSettings">建立新的資料檔</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="muted" style="margin-bottom:4px;">帳號安全</div>
+      <div class="form-grid">
+        <label>目前密碼
+          <input type="password" id="s_curPassword" placeholder="變更前請先輸入目前密碼" autocomplete="current-password">
+        </label>
+        <label>新帳號（選填）
+          <input type="text" id="s_newUsername" placeholder="留空表示不變更" autocomplete="username">
+        </label>
+        <label>新密碼（選填）
+          <input type="password" id="s_newPassword" placeholder="留空表示不變更" autocomplete="new-password">
+        </label>
+        <label>確認新密碼
+          <input type="password" id="s_newPasswordConfirm" autocomplete="new-password">
+        </label>
+      </div>
+      <div class="footer-actions" style="margin-top:0;">
+        <button class="small" id="btnUpdateAccount">更新帳號安全設定</button>
+      </div>
+      <div class="muted" id="accountSecurityMsg" style="margin-top:6px;"></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="muted" style="margin-bottom:4px;">收入類別</div>
+      <div class="tag-list" id="incomeCatList"></div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="newIncomeCat" placeholder="新增收入類別" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
+        <button class="small" id="addIncomeCat">新增</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="muted" style="margin-bottom:4px;">支出類別</div>
+      <div class="tag-list" id="expenseCatList"></div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="newExpenseCat" placeholder="新增支出類別" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
+        <button class="small" id="addExpenseCat">新增</button>
+      </div>
+    </div>
+    <div class="footer-actions">
+      <button class="primary" id="btnSaveSettings">儲存設定</button>
+      <button data-close="settingsModalBg">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- On-screen numeric keypad -->
+<div class="keypad" id="numKeypad">
+  <div class="keypad-grid">
+    <button type="button" data-key="7">7</button>
+    <button type="button" data-key="8">8</button>
+    <button type="button" data-key="9">9</button>
+    <button type="button" data-key="4">4</button>
+    <button type="button" data-key="5">5</button>
+    <button type="button" data-key="6">6</button>
+    <button type="button" data-key="1">1</button>
+    <button type="button" data-key="2">2</button>
+    <button type="button" data-key="3">3</button>
+    <button type="button" data-key="dot">．</button>
+    <button type="button" data-key="0">0</button>
+    <button type="button" class="kp-func" data-key="back">⌫</button>
+    <button type="button" class="kp-func" data-key="clear">清除</button>
+    <button type="button" class="kp-func kp-done" data-key="done">完成</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const STORAGE_KEY = "companyLedgerState_v1";
+  const AUTH_ITERATIONS = 150000;
+  const DEFAULT_USERNAME = "antrendadmin";
+  const DEFAULT_PASSWORD = "60650967";
+  const CRYPTO_OK = !!(window.crypto && window.crypto.subtle);
+
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function monthKeyOf(dateStr){ return (dateStr||todayStr()).slice(0,7); }
+  function genId(){ return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function fmtMoney(n){
+    n = Number(n)||0;
+    const sign = n<0 ? "-" : "";
+    return sign + state.settings.currency + Math.abs(n).toLocaleString("zh-TW",{minimumFractionDigits:0,maximumFractionDigits:2});
+  }
+  function monthLabel(mk){
+    const [y,m] = mk.split("-");
+    return y + "年" + parseInt(m,10) + "月";
+  }
+
+  function defaultState(){
+    return {
+      settings:{
+        companyName:"安創行政帳戶收支登記系統",
+        currency:"NT$",
+        initialBalance:0,
+        logoDataUrl:"",
+        logoHeight:24,
+        incomeCategories:["業務收入","銷貨收入","利息收入","其他收入"],
+        expenseCategories:["薪資","房租水電","辦公用品","交通差旅","伙食","稅金規費","其他支出"],
+        payMethods:["現金","銀行轉帳","支票","信用卡","其他"]
+      },
+      transactions:[]
+    };
+  }
+
+  function normalizeState(parsed){
+    const d = defaultState();
+    return {
+      settings: Object.assign({}, d.settings, (parsed && parsed.settings) || {}),
+      transactions: (parsed && Array.isArray(parsed.transactions)) ? parsed.transactions : []
+    };
+  }
+
+  // ---------- encryption helpers (Web Crypto: PBKDF2 -> AES-GCM) ----------
+  function randomBytes(n){ return crypto.getRandomValues(new Uint8Array(n)); }
+  function toB64(bytes){
+    let bin = "";
+    bytes.forEach(b=>{ bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+  function fromB64(str){
+    const bin = atob(str);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+  async function deriveKey(password, saltBytes, iterations){
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), {name:"PBKDF2"}, false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      {name:"PBKDF2", salt: saltBytes, iterations: iterations || AUTH_ITERATIONS, hash:"SHA-256"},
+      keyMaterial,
+      {name:"AES-GCM", length:256},
+      false,
+      ["encrypt","decrypt"]
+    );
+  }
+  async function encryptJSON(obj, key){
+    const iv = randomBytes(12);
+    const enc = new TextEncoder();
+    const data = enc.encode(JSON.stringify(obj));
+    const cipherBuf = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, data);
+    return { iv: toB64(iv), cipher: toB64(new Uint8Array(cipherBuf)) };
+  }
+  async function decryptJSON(ivB64, cipherB64, key){
+    const iv = fromB64(ivB64);
+    const cipherBytes = fromB64(cipherB64);
+    const plainBuf = await crypto.subtle.decrypt({name:"AES-GCM", iv}, key, cipherBytes);
+    const dec = new TextDecoder();
+    return JSON.parse(dec.decode(plainBuf));
+  }
+  function isEncryptedEnvelope(parsed){
+    return !!(parsed && parsed.encrypted===true && parsed.v>=2 && parsed.salt && parsed.iv && parsed.cipher);
+  }
+
+  // ---------- auth / session state ----------
+  let authKey = null;          // CryptoKey used to encrypt/decrypt the ledger
+  let authSaltBytes = null;    // Uint8Array salt tied to authKey
+  let authUsername = null;     // display / login username
+  let authPassword = null;     // kept in memory only, for "current password" re-verification in Settings
+
+  // ---------- storage: external file (File System Access API) with localStorage fallback ----------
+  let fileHandle = null;
+  let fileMode = "pending"; // "file" | "localStorage" | "pending"
+  let writeQueue = Promise.resolve();
+  const supportsFS = typeof window !== "undefined" && "showOpenFilePicker" in window;
+
+  function idbOpen(){
+    return new Promise((resolve,reject)=>{
+      const req = indexedDB.open("companyLedgerDB", 1);
+      req.onupgradeneeded = ()=>{ req.result.createObjectStore("handles"); };
+      req.onsuccess = ()=>resolve(req.result);
+      req.onerror = ()=>reject(req.error);
+    });
+  }
+  async function idbGet(key){
+    const db = await idbOpen();
+    return new Promise((resolve,reject)=>{
+      const tx = db.transaction("handles","readonly");
+      const req = tx.objectStore("handles").get(key);
+      req.onsuccess = ()=>resolve(req.result);
+      req.onerror = ()=>reject(req.error);
+    });
+  }
+  async function idbSet(key,val){
+    const db = await idbOpen();
+    return new Promise((resolve,reject)=>{
+      const tx = db.transaction("handles","readwrite");
+      tx.objectStore("handles").put(val,key);
+      tx.oncomplete = ()=>resolve();
+      tx.onerror = ()=>reject(tx.error);
+    });
+  }
+  // Remembering the file handle (for automatic reconnect next time) is a
+  // nice-to-have, not essential — if it fails (private browsing, quota,
+  // etc.) the file itself is still connected and working, so this must
+  // never block or fail the main connect/create flow.
+  async function rememberFileHandle(handle){
+    try{ await idbSet("fileHandle", handle); }
+    catch(e){ console.warn("無法記住資料檔案位置，下次開啟需重新選擇檔案", e); }
+  }
+
+  async function saveState(){
+    if(!authKey){ console.warn("尚未登入，無法儲存資料"); return; }
+    const {iv, cipher} = await encryptJSON(state, authKey);
+    const envelope = {
+      v: 2,
+      encrypted: true,
+      username: authUsername,
+      salt: toB64(authSaltBytes),
+      iterations: AUTH_ITERATIONS,
+      iv, cipher
+    };
+    const text = JSON.stringify(envelope, null, 2);
+    if(fileMode === "localStorage"){
+      localStorage.setItem(STORAGE_KEY, text);
+      return;
+    }
+    writeQueue = writeQueue.then(async ()=>{
+      if(!fileHandle) return;
+      try{
+        const writable = await fileHandle.createWritable();
+        await writable.write(text);
+        await writable.close();
+      }catch(e){
+        console.error("寫入資料檔失敗", e);
+      }
+    });
+    return writeQueue;
+  }
+
+  async function readFileText(){
+    const file = await fileHandle.getFile();
+    return await file.text();
+  }
+
+  // Given the raw text loaded from the file / localStorage, decide whether
+  // we need to show the login screen (data already encrypted) or the
+  // account-setup screen (brand new / legacy plaintext data that needs to
+  // be migrated into an encrypted envelope).
+  async function routeLoadedContent(rawText){
+    if(!CRYPTO_OK){
+      alert("此瀏覽器不支援必要的加密功能 (Web Crypto API)，請改用最新版 Chrome、Edge 或 Firefox 開啟本系統。");
+      return;
+    }
+    let parsed = null;
+    if(rawText && rawText.trim()){
+      try{ parsed = JSON.parse(rawText); }
+      catch(e){ parsed = null; }
+    }
+    if(!parsed){
+      showSetupAccountScreen(defaultState());
+      return;
+    }
+    if(isEncryptedEnvelope(parsed)){
+      showLoginScreen(parsed);
+      return;
+    }
+    // Legacy plaintext data file (old format, or an imported backup) —
+    // treat as unprotected data that needs an account set up to encrypt it.
+    const legacy = normalizeState(parsed);
+    showSetupAccountScreen(legacy);
+  }
+
+  function updateFileStatus(){
+    const el = document.getElementById("fileStatus");
+    if(!el) return;
+    let base = "";
+    if(fileMode === "file" && fileHandle){
+      base = "資料檔案：" + fileHandle.name;
+    } else if(fileMode === "localStorage"){
+      base = "此瀏覽器不支援直接存取檔案，已改用瀏覽器本機儲存（建議定期匯出備份）";
+    }
+    el.textContent = (authUsername ? "登入身分：" + authUsername + (base ? "　｜　" : "") : "") + base;
+    const info = document.getElementById("settingsFileInfo");
+    if(info){
+      info.textContent = fileMode==="file" && fileHandle ? ("目前資料檔：" + fileHandle.name) : "目前使用瀏覽器本機儲存";
+    }
+    const switchBtn = document.getElementById("btnSwitchFile");
+    const createBtn = document.getElementById("btnCreateFileFromSettings");
+    if(switchBtn) switchBtn.style.display = supportsFS ? "inline-block" : "none";
+    if(createBtn) createBtn.style.display = supportsFS ? "inline-block" : "none";
+  }
+
+  function hideConnectScreen(){ document.getElementById("connectScreenBg").classList.remove("show"); }
+  function showConnectScreen(reconnectHandle){
+    const bg = document.getElementById("connectScreenBg");
+    const buttonsEl = document.getElementById("connectButtons");
+    const descEl = document.getElementById("connectDesc");
+    if(reconnectHandle){
+      descEl.textContent = "偵測到先前連接過的資料檔「" + reconnectHandle.name + "」，請重新授權以繼續使用。";
+      buttonsEl.innerHTML = "";
+      const reconnectBtn = document.createElement("button");
+      reconnectBtn.className = "primary";
+      reconnectBtn.textContent = "重新連結此檔案";
+      reconnectBtn.addEventListener("click", async ()=>{
+        try{
+          const perm = await reconnectHandle.requestPermission({mode:"readwrite"});
+          if(perm === "granted"){
+            fileHandle = reconnectHandle;
+            fileMode = "file";
+            const raw = await readFileText();
+            await rememberFileHandle(fileHandle);
+            hideConnectScreen();
+            await routeLoadedContent(raw);
+          } else {
+            alert("未取得授權，請選擇其他資料檔。");
+            showConnectScreen(null);
+          }
+        }catch(e){
+          console.error(e);
+          showConnectScreen(null);
+        }
+      });
+      const otherBtn = document.createElement("button");
+      otherBtn.textContent = "改用其他檔案";
+      otherBtn.addEventListener("click", ()=>showConnectScreen(null));
+      buttonsEl.appendChild(reconnectBtn);
+      buttonsEl.appendChild(otherBtn);
+    } else {
+      descEl.textContent = "請選擇資料儲存方式。選擇檔案後，之後每次記帳都會直接寫入這個檔案，方便備份與跨電腦使用。";
+      buttonsEl.innerHTML = "";
+      const openBtn = document.createElement("button");
+      openBtn.className = "primary";
+      openBtn.id = "btnOpenExisting";
+      openBtn.textContent = "開啟現有資料檔";
+      openBtn.addEventListener("click", pickExistingFile);
+      const newBtn = document.createElement("button");
+      newBtn.id = "btnCreateNew";
+      newBtn.textContent = "建立新的資料檔";
+      newBtn.addEventListener("click", createNewFile);
+      buttonsEl.appendChild(openBtn);
+      buttonsEl.appendChild(newBtn);
+    }
+    bg.classList.add("show");
+  }
+
+  async function pickExistingFile(){
+    try{
+      const [handle] = await window.showOpenFilePicker({
+        types:[{description:"JSON 資料檔", accept:{"application/json":[".json"]}}]
+      });
+      fileHandle = handle;
+      fileMode = "file";
+      const raw = await readFileText();
+      await rememberFileHandle(fileHandle);
+      hideConnectScreen();
+      await routeLoadedContent(raw);
+    }catch(e){
+      if(e && e.name === "AbortError") return;
+      console.error(e);
+      alert("開啟檔案失敗，請再試一次。");
+    }
+  }
+
+  async function createNewFile(){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: "公司帳戶資料.json",
+        types:[{description:"JSON 資料檔", accept:{"application/json":[".json"]}}]
+      });
+      fileHandle = handle;
+      fileMode = "file";
+      let initial = defaultState();
+      try{
+        const existingRaw = localStorage.getItem(STORAGE_KEY);
+        if(existingRaw){
+          const existingParsed = JSON.parse(existingRaw);
+          if(!isEncryptedEnvelope(existingParsed)){
+            const existing = normalizeState(existingParsed);
+            if(existing.transactions.length && confirm("偵測到先前在此瀏覽器記錄的資料，是否要匯入到新檔案中？")){
+              initial = existing;
+            }
+          }
+        }
+      }catch(e){ /* ignore */ }
+      await rememberFileHandle(fileHandle);
+      hideConnectScreen();
+      showSetupAccountScreen(initial);
+    }catch(e){
+      if(e && e.name === "AbortError") return;
+      console.error(e);
+      alert("建立檔案失敗，請再試一次。");
+    }
+  }
+
+  function finishInit(){
+    hideConnectScreen();
+    document.getElementById("loginScreenBg").classList.remove("show");
+    document.getElementById("setupAccountScreenBg").classList.remove("show");
+    currentView = todayStr().slice(0,7);
+    render();
+  }
+
+  async function initStorage(){
+    if(!CRYPTO_OK){
+      alert("此瀏覽器不支援必要的加密功能 (Web Crypto API)，請改用最新版 Chrome、Edge 或 Firefox 開啟本系統。");
+      return;
+    }
+    if(!supportsFS){
+      fileMode = "localStorage";
+      const raw = localStorage.getItem(STORAGE_KEY);
+      await routeLoadedContent(raw);
+      return;
+    }
+    try{
+      const saved = await idbGet("fileHandle");
+      if(saved){
+        let perm = "prompt";
+        try{ perm = await saved.queryPermission({mode:"readwrite"}); }catch(e){ perm = "prompt"; }
+        if(perm === "granted"){
+          fileHandle = saved;
+          fileMode = "file";
+          const raw = await readFileText();
+          await routeLoadedContent(raw);
+          return;
+        }
+        showConnectScreen(saved);
+        return;
+      }
+    }catch(e){
+      console.warn("讀取先前的資料檔設定失敗", e);
+    }
+    showConnectScreen(null);
+  }
+
+  // ---------- login / account setup screens ----------
+  let pendingEnvelope = null;
+  let pendingBaseState = null;
+
+  function showLoginScreen(envelope){
+    pendingEnvelope = envelope;
+    document.getElementById("loginUsername").value = envelope.username || DEFAULT_USERNAME;
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("loginError").textContent = "";
+    document.getElementById("loginScreenBg").classList.add("show");
+    setTimeout(()=>{
+      const pw = document.getElementById("loginPassword");
+      if(pw) pw.focus();
+    }, 50);
+  }
+
+  async function handleLogin(){
+    const errEl = document.getElementById("loginError");
+    errEl.textContent = "";
+    if(!pendingEnvelope) return;
+    const usernameInput = document.getElementById("loginUsername").value.trim() || DEFAULT_USERNAME;
+    const password = document.getElementById("loginPassword").value;
+    if(usernameInput !== (pendingEnvelope.username || DEFAULT_USERNAME)){
+      errEl.textContent = "帳號或密碼錯誤，請再試一次";
+      return;
+    }
+    try{
+      const saltBytes = fromB64(pendingEnvelope.salt);
+      const iterations = pendingEnvelope.iterations || AUTH_ITERATIONS;
+      const key = await deriveKey(password, saltBytes, iterations);
+      const decrypted = await decryptJSON(pendingEnvelope.iv, pendingEnvelope.cipher, key);
+      state = normalizeState(decrypted);
+      authKey = key;
+      authSaltBytes = saltBytes;
+      authUsername = pendingEnvelope.username || DEFAULT_USERNAME;
+      authPassword = password;
+      pendingEnvelope = null;
+      finishInit();
+    }catch(e){
+      errEl.textContent = "帳號或密碼錯誤，請再試一次";
+    }
+  }
+
+  function showSetupAccountScreen(baseState){
+    pendingBaseState = baseState || defaultState();
+    document.getElementById("setupUsername").value = "";
+    document.getElementById("setupPassword").value = "";
+    document.getElementById("setupPasswordConfirm").value = "";
+    document.getElementById("setupError").textContent = "";
+    const desc = document.getElementById("setupDesc");
+    if(desc){
+      desc.textContent = (pendingBaseState.transactions && pendingBaseState.transactions.length)
+        ? "偵測到現有的帳本資料尚未加密，請設定管理帳號密碼以啟用加密保護。"
+        : "首次使用，請設定管理帳號密碼，之後將以此帳密加密並保護您的帳本資料。";
+    }
+    document.getElementById("setupAccountScreenBg").classList.add("show");
+  }
+
+  async function handleSetupAccount(){
+    const errEl = document.getElementById("setupError");
+    errEl.textContent = "";
+    const username = document.getElementById("setupUsername").value.trim() || DEFAULT_USERNAME;
+    const pwField = document.getElementById("setupPassword").value;
+    const confirmField = document.getElementById("setupPasswordConfirm").value;
+    const password = pwField || DEFAULT_PASSWORD;
+    if(pwField && pwField !== confirmField){
+      errEl.textContent = "兩次輸入的密碼不一致";
+      return;
+    }
+    let key;
+    const saltBytes = randomBytes(16);
+    try{
+      key = await deriveKey(password, saltBytes, AUTH_ITERATIONS);
+    }catch(e){
+      console.error(e);
+      errEl.textContent = "建立帳號失敗，請再試一次";
+      return;
+    }
+    authUsername = username;
+    authSaltBytes = saltBytes;
+    authKey = key;
+    authPassword = password;
+    state = pendingBaseState || defaultState();
+    pendingBaseState = null;
+    await saveState();
+    finishInit();
+  }
+
+  function logout(){
+    if(!confirm("確定要登出嗎？下次開啟需要重新輸入密碼。")) return;
+    location.reload();
+  }
+
+  let state = defaultState();
+  let currentView = "overview"; // "overview" or a monthKey "YYYY-MM"
+  let editingId = null;
+  let searchTerm = "";
+  let filterType = "";
+
+  // ---------- month range helpers ----------
+  function getContinuousMonthKeys(){
+    const keys = state.transactions.map(t=>monthKeyOf(t.date));
+    keys.push(todayStr().slice(0,7));
+    let min = keys.reduce((a,b)=> a<b?a:b);
+    let max = keys.reduce((a,b)=> a>b?a:b);
+    const result = [];
+    let [y,m] = min.split("-").map(Number);
+    const [ey,em] = max.split("-").map(Number);
+    while(y < ey || (y===ey && m<=em)){
+      result.push(y+"-"+String(m).padStart(2,"0"));
+      m++; if(m>12){m=1;y++;}
+    }
+    return result;
+  }
+
+  function getMonthTxns(mk){
+    return state.transactions
+      .filter(t=>monthKeyOf(t.date)===mk)
+      .sort((a,b)=> a.date===b.date ? (a._seq||0)-(b._seq||0) : (a.date<b.date?-1:1));
+  }
+
+  function getMonthTotals(mk){
+    const txns = getMonthTxns(mk);
+    let income=0, expense=0;
+    txns.forEach(t=>{ if(t.type==="income") income+=Number(t.amount)||0; else expense+=Number(t.amount)||0; });
+    return {income, expense, net: income-expense};
+  }
+
+  function getAllOpeningBalances(){
+    const months = getContinuousMonthKeys();
+    const openings = {};
+    let running = Number(state.settings.initialBalance)||0;
+    months.forEach(mk=>{
+      openings[mk] = running;
+      const tot = getMonthTotals(mk);
+      running = running + tot.net;
+    });
+    return openings;
+  }
+
+  // ---------- rendering ----------
+  function updateHeaderLogo(){
+    const img = document.getElementById("companyLogo");
+    if(!img) return;
+    if(state.settings.logoDataUrl){
+      img.src = state.settings.logoDataUrl;
+      img.style.height = (Number(state.settings.logoHeight)||24) + "px";
+      img.style.display = "inline-block";
+    } else {
+      img.removeAttribute("src");
+      img.style.display = "none";
+    }
+  }
+
+  function render(){
+    document.getElementById("companyNameDisplay").textContent = state.settings.companyName;
+    updateFileStatus();
+    updateHeaderLogo();
+    renderTabs();
+    if(currentView==="overview") renderOverview();
+    else renderMonthView(currentView);
+  }
+
+  function renderTabs(){
+    const months = getContinuousMonthKeys().slice().reverse();
+    const tabsEl = document.getElementById("tabs");
+    let html = `<button data-tab="overview" class="${currentView==='overview'?'active':''}">📊 總覽</button>`;
+    months.forEach(mk=>{
+      html += `<button data-tab="${mk}" class="${currentView===mk?'active':''}">${monthLabel(mk)}</button>`;
+    });
+    tabsEl.innerHTML = html;
+    tabsEl.querySelectorAll("button").forEach(b=>{
+      b.addEventListener("click", ()=>{ currentView = b.dataset.tab; render(); });
+    });
+  }
+
+  function renderMonthView(mk){
+    const openings = getAllOpeningBalances();
+    const opening = openings[mk] || 0;
+    const totals = getMonthTotals(mk);
+    const closing = opening + totals.net;
+    const txns = getMonthTxns(mk);
+
+    let filtered = txns.filter(t=>{
+      if(filterType && t.type!==filterType) return false;
+      if(searchTerm){
+        const hay = [t.desc,t.category,t.partner,t.invoiceNo,t.note].join(" ").toLowerCase();
+        if(!hay.includes(searchTerm.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    let running = opening;
+    const rows = txns.map(t=>{
+      running += (t.type==="income" ? Number(t.amount)||0 : -(Number(t.amount)||0));
+      return {t, balanceAfter: running};
+    });
+    const balanceMap = {};
+    rows.forEach(r=> balanceMap[r.t.id]=r.balanceAfter);
+
+    let tableRows = filtered.map(t=>{
+      return `<tr data-id="${t.id}" class="txn-row" style="cursor:pointer;">
+        <td>${esc(t.date)}</td>
+        <td class="desc">${esc(t.desc)}</td>
+        <td>${esc(t.category)}</td>
+        <td>${esc(t.invoiceNo)}</td>
+        <td>${esc(t.partner)}</td>
+        <td>${esc(t.payMethod||"")}</td>
+        <td>${t.tax? fmtMoney(t.tax) : ""}</td>
+        <td class="amount-in">${t.type==="income"?fmtMoney(t.amount):""}</td>
+        <td class="amount-out">${t.type==="expense"?fmtMoney(t.amount):""}</td>
+        <td>${fmtMoney(balanceMap[t.id])}</td>
+        <td class="note">${esc(t.note)}</td>
+      </tr>`;
+    }).join("");
+
+    if(filtered.length===0){
+      tableRows = `<tr><td colspan="11" class="empty">本月尚無符合的交易紀錄</td></tr>`;
+    }
+
+    const html = `
+      <div class="summary-grid">
+        <div class="summary-item"><div class="label">期初餘額</div><div class="value">${fmtMoney(opening)}</div></div>
+        <div class="summary-item"><div class="label">本月收入</div><div class="value income">${fmtMoney(totals.income)}</div></div>
+        <div class="summary-item"><div class="label">本月支出</div><div class="value expense">${fmtMoney(totals.expense)}</div></div>
+        <div class="summary-item"><div class="label">本月淨額</div><div class="value">${fmtMoney(totals.net)}</div></div>
+        <div class="summary-item"><div class="label">期末餘額</div><div class="value">${fmtMoney(closing)}</div></div>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px;">
+          <div style="font-weight:600;">${monthLabel(mk)} 交易明細</div>
+          <div class="no-print" style="display:flex;gap:8px;">
+            <button class="small" id="btnExportMonthCSV">匯出本月 CSV</button>
+            <button class="small" id="btnPrintMonth">列印本月</button>
+          </div>
+        </div>
+        <div class="search-bar no-print">
+          <input type="text" id="searchInput" placeholder="搜尋摘要／類別／廠商／備註…" value="${esc(searchTerm)}" style="flex:1;min-width:200px;">
+          <select id="filterTypeSelect">
+            <option value="">全部類型</option>
+            <option value="income" ${filterType==="income"?"selected":""}>只看收入</option>
+            <option value="expense" ${filterType==="expense"?"selected":""}>只看支出</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>日期</th><th>摘要</th><th>類別</th><th>發票/單據</th><th>廠商/客戶</th><th>付款方式</th><th>稅額</th><th>收入</th><th>支出</th><th>結餘</th><th>備註</th>
+            </tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById("content").innerHTML = html;
+
+    document.getElementById("btnExportMonthCSV").addEventListener("click", ()=>exportCSV(mk));
+    document.getElementById("btnPrintMonth").addEventListener("click", ()=>window.print());
+    document.getElementById("searchInput").addEventListener("input", (e)=>{ searchTerm=e.target.value; renderMonthView(mk); });
+    document.getElementById("filterTypeSelect").addEventListener("change", (e)=>{ filterType=e.target.value; renderMonthView(mk); });
+    document.querySelectorAll(".txn-row").forEach(row=>{
+      row.addEventListener("click", ()=> openEditTxn(row.dataset.id));
+    });
+  }
+
+  let chartInstance = null;
+  function renderOverview(){
+    const months = getContinuousMonthKeys();
+    const openings = getAllOpeningBalances();
+    let rowsHtml = "";
+    let totalIncome=0, totalExpense=0;
+    months.forEach(mk=>{
+      const tot = getMonthTotals(mk);
+      const opening = openings[mk];
+      const closing = opening + tot.net;
+      totalIncome+=tot.income; totalExpense+=tot.expense;
+      rowsHtml += `<tr class="month-row" data-month="${mk}" style="cursor:pointer;">
+        <td>${monthLabel(mk)}</td>
+        <td>${fmtMoney(opening)}</td>
+        <td class="amount-in">${fmtMoney(tot.income)}</td>
+        <td class="amount-out">${fmtMoney(tot.expense)}</td>
+        <td>${fmtMoney(tot.net)}</td>
+        <td>${fmtMoney(closing)}</td>
+      </tr>`;
+    });
+    const finalClosing = months.length ? (openings[months[months.length-1]] + getMonthTotals(months[months.length-1]).net) : (Number(state.settings.initialBalance)||0);
+
+    const html = `
+      <div class="summary-grid">
+        <div class="summary-item"><div class="label">累計收入</div><div class="value income">${fmtMoney(totalIncome)}</div></div>
+        <div class="summary-item"><div class="label">累計支出</div><div class="value expense">${fmtMoney(totalExpense)}</div></div>
+        <div class="summary-item"><div class="label">累計淨額</div><div class="value">${fmtMoney(totalIncome-totalExpense)}</div></div>
+        <div class="summary-item"><div class="label">目前餘額</div><div class="value">${fmtMoney(finalClosing)}</div></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:10px;">每月收支趨勢</div>
+        <canvas id="trendChart" height="90"></canvas>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px;">
+          <div style="font-weight:600;">各月彙總</div>
+          <button class="small no-print" id="btnExportAllCSV">匯出全部 CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>月份</th><th>期初餘額</th><th>收入</th><th>支出</th><th>淨額</th><th>期末餘額</th></tr></thead>
+            <tbody>${rowsHtml || '<tr><td colspan="6" class="empty">尚無資料，請先新增交易</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById("content").innerHTML = html;
+
+    document.getElementById("btnExportAllCSV").addEventListener("click", ()=>exportCSV("all"));
+    document.querySelectorAll(".month-row").forEach(row=>{
+      row.addEventListener("click", ()=>{ currentView = row.dataset.month; render(); });
+    });
+
+    if(typeof Chart !== "undefined" && months.length){
+      const ctx = document.getElementById("trendChart");
+      if(chartInstance) chartInstance.destroy();
+      const incomeData = months.map(mk=>getMonthTotals(mk).income);
+      const expenseData = months.map(mk=>getMonthTotals(mk).expense);
+      const balanceData = months.map(mk=> openings[mk] + getMonthTotals(mk).net);
+      chartInstance = new Chart(ctx, {
+        data:{
+          labels: months.map(monthLabel),
+          datasets:[
+            {type:"bar", label:"收入", data:incomeData, backgroundColor:"#1a9e5c"},
+            {type:"bar", label:"支出", data:expenseData, backgroundColor:"#d64545"},
+            {type:"line", label:"期末餘額", data:balanceData, borderColor:"#2f6fed", backgroundColor:"#2f6fed", yAxisID:"y1", tension:.3}
+          ]
+        },
+        options:{
+          responsive:true,
+          interaction:{mode:"index", intersect:false},
+          scales:{
+            y:{beginAtZero:true},
+            y1:{position:"right", grid:{drawOnChartArea:false}}
+          }
+        }
+      });
+    }
+  }
+
+  // ---------- transaction modal ----------
+  const txnModalBg = document.getElementById("txnModalBg");
+  let currentType = "expense";
+
+  function populateSelects(){
+    const catSel = document.getElementById("f_category");
+    const cats = currentType==="income" ? state.settings.incomeCategories : state.settings.expenseCategories;
+    catSel.innerHTML = cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    const paySel = document.getElementById("f_paymethod");
+    paySel.innerHTML = state.settings.payMethods.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("");
+  }
+
+  function setType(type){
+    currentType = type;
+    document.getElementById("typeIncomeBtn").classList.toggle("active", type==="income");
+    document.getElementById("typeExpenseBtn").classList.toggle("active", type==="expense");
+    populateSelects();
+  }
+
+  function openAddTxn(){
+    editingId = null;
+    document.getElementById("txnModalTitle").textContent = "新增交易";
+    document.getElementById("btnDeleteTxn").style.display = "none";
+    document.getElementById("btnDuplicateTxn").style.display = "none";
+    document.getElementById("f_date").value = currentView.match(/^\d{4}-\d{2}$/) ? (currentView+"-01") : todayStr();
+    document.getElementById("f_amount").value = "";
+    document.getElementById("f_invoice").value = "";
+    document.getElementById("f_partner").value = "";
+    document.getElementById("f_tax").value = "";
+    document.getElementById("f_desc").value = "";
+    document.getElementById("f_note").value = "";
+    setType("expense");
+    txnModalBg.classList.add("show");
+  }
+
+  function openEditTxn(id){
+    const t = state.transactions.find(x=>x.id===id);
+    if(!t) return;
+    editingId = id;
+    document.getElementById("txnModalTitle").textContent = "編輯交易";
+    document.getElementById("btnDeleteTxn").style.display = "inline-block";
+    document.getElementById("btnDuplicateTxn").style.display = "inline-block";
+    setType(t.type);
+    document.getElementById("f_date").value = t.date;
+    document.getElementById("f_amount").value = t.amount;
+    document.getElementById("f_invoice").value = t.invoiceNo||"";
+    document.getElementById("f_partner").value = t.partner||"";
+    document.getElementById("f_tax").value = t.tax||"";
+    document.getElementById("f_desc").value = t.desc||"";
+    document.getElementById("f_note").value = t.note||"";
+    document.getElementById("f_category").value = t.category||"";
+    document.getElementById("f_paymethod").value = t.payMethod||"";
+    txnModalBg.classList.add("show");
+  }
+
+  function saveTxn(){
+    const date = document.getElementById("f_date").value || todayStr();
+    const amount = parseFloat(document.getElementById("f_amount").value);
+    if(!amount || amount<=0){ alert("請輸入有效的金額"); return; }
+    const payload = {
+      date, type: currentType, amount,
+      category: document.getElementById("f_category").value,
+      payMethod: document.getElementById("f_paymethod").value,
+      invoiceNo: document.getElementById("f_invoice").value.trim(),
+      partner: document.getElementById("f_partner").value.trim(),
+      tax: parseFloat(document.getElementById("f_tax").value)||0,
+      desc: document.getElementById("f_desc").value.trim(),
+      note: document.getElementById("f_note").value.trim()
+    };
+    if(editingId){
+      const idx = state.transactions.findIndex(x=>x.id===editingId);
+      if(idx>-1) state.transactions[idx] = Object.assign({}, state.transactions[idx], payload);
+    } else {
+      payload.id = genId();
+      payload._seq = Date.now();
+      state.transactions.push(payload);
+    }
+    saveState();
+    txnModalBg.classList.remove("show");
+    currentView = monthKeyOf(date);
+    render();
+  }
+
+  function deleteTxn(){
+    if(!editingId) return;
+    if(!confirm("確定要刪除這筆交易嗎？")) return;
+    state.transactions = state.transactions.filter(x=>x.id!==editingId);
+    saveState();
+    txnModalBg.classList.remove("show");
+    render();
+  }
+
+  function duplicateTxn(){
+    // Keep all currently-filled field values, but detach from the original
+    // record so that saving creates a brand-new transaction instead of
+    // overwriting the one being edited.
+    editingId = null;
+    document.getElementById("txnModalTitle").textContent = "複製交易（新增）";
+    document.getElementById("btnDeleteTxn").style.display = "none";
+    document.getElementById("btnDuplicateTxn").style.display = "none";
+  }
+
+  // ---------- settings modal ----------
+  const settingsModalBg = document.getElementById("settingsModalBg");
+  function syncLogoPreview(){
+    const preview = document.getElementById("logoPreview");
+    const empty = document.getElementById("logoPreviewEmpty");
+    const slider = document.getElementById("logoSizeSlider");
+    const sizeLabel = document.getElementById("logoSizeValue");
+    const height = Number(state.settings.logoHeight)||24;
+    slider.value = height;
+    sizeLabel.textContent = height + "px";
+    if(state.settings.logoDataUrl){
+      preview.src = state.settings.logoDataUrl;
+      preview.style.display = "block";
+      preview.style.height = Math.min(height, 52) + "px";
+      preview.style.width = "auto";
+      empty.style.display = "none";
+    } else {
+      preview.removeAttribute("src");
+      preview.style.display = "none";
+      empty.style.display = "block";
+    }
+  }
+
+  function openSettings(){
+    document.getElementById("s_companyName").value = state.settings.companyName;
+    document.getElementById("s_currency").value = state.settings.currency;
+    document.getElementById("s_initialBalance").value = state.settings.initialBalance;
+    document.getElementById("s_curPassword").value = "";
+    document.getElementById("s_newUsername").value = "";
+    document.getElementById("s_newPassword").value = "";
+    document.getElementById("s_newPasswordConfirm").value = "";
+    const msgEl = document.getElementById("accountSecurityMsg");
+    if(msgEl){ msgEl.textContent = ""; }
+    syncLogoPreview();
+    renderCatList("incomeCatList","incomeCategories");
+    renderCatList("expenseCatList","expenseCategories");
+    settingsModalBg.classList.add("show");
+  }
+  function renderCatList(elId, key){
+    const el = document.getElementById(elId);
+    el.innerHTML = state.settings[key].map((c,i)=>`<span class="tag">${esc(c)}<button data-key="${key}" data-idx="${i}" class="removeCat">✕</button></span>`).join("");
+    el.querySelectorAll(".removeCat").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        state.settings[b.dataset.key].splice(parseInt(b.dataset.idx,10),1);
+        renderCatList(elId,key);
+      });
+    });
+  }
+  function saveSettings(){
+    state.settings.companyName = document.getElementById("s_companyName").value.trim() || "安創行政帳戶收支登記系統";
+    state.settings.currency = document.getElementById("s_currency").value.trim() || "NT$";
+    state.settings.initialBalance = parseFloat(document.getElementById("s_initialBalance").value)||0;
+    saveState();
+    settingsModalBg.classList.remove("show");
+    render();
+  }
+
+  async function updateAccountSecurity(){
+    const msgEl = document.getElementById("accountSecurityMsg");
+    msgEl.style.color = "";
+    msgEl.textContent = "";
+    const curPass = document.getElementById("s_curPassword").value;
+    if(curPass !== authPassword){
+      msgEl.style.color = "var(--expense)";
+      msgEl.textContent = "目前密碼不正確";
+      return;
+    }
+    const newUsername = document.getElementById("s_newUsername").value.trim();
+    const newPassword = document.getElementById("s_newPassword").value;
+    const newPasswordConfirm = document.getElementById("s_newPasswordConfirm").value;
+    if(newPassword && newPassword !== newPasswordConfirm){
+      msgEl.style.color = "var(--expense)";
+      msgEl.textContent = "兩次輸入的新密碼不一致";
+      return;
+    }
+    if(!newUsername && !newPassword){
+      msgEl.style.color = "var(--expense)";
+      msgEl.textContent = "請輸入要變更的新帳號或新密碼";
+      return;
+    }
+    if(newPassword){
+      const saltBytes = randomBytes(16);
+      let key;
+      try{
+        key = await deriveKey(newPassword, saltBytes, AUTH_ITERATIONS);
+      }catch(e){
+        console.error(e);
+        msgEl.style.color = "var(--expense)";
+        msgEl.textContent = "更新失敗，請再試一次";
+        return;
+      }
+      authKey = key;
+      authSaltBytes = saltBytes;
+      authPassword = newPassword;
+    }
+    if(newUsername) authUsername = newUsername;
+    await saveState();
+    document.getElementById("s_curPassword").value = "";
+    document.getElementById("s_newUsername").value = "";
+    document.getElementById("s_newPassword").value = "";
+    document.getElementById("s_newPasswordConfirm").value = "";
+    msgEl.style.color = "var(--income)";
+    msgEl.textContent = "帳號安全設定已更新";
+    updateFileStatus();
+  }
+
+  // ---------- CSV / JSON export-import ----------
+  function csvEscape(v){
+    v = String(v==null?"":v);
+    if(/[",\n]/.test(v)) return '"' + v.replace(/"/g,'""') + '"';
+    return v;
+  }
+  function exportCSV(scope){
+    const list = scope==="all" ? state.transactions.slice().sort((a,b)=>a.date<b.date?-1:1) : getMonthTxns(scope);
+    const header = ["日期","類型","金額","類別","發票/單據號碼","廠商/客戶","付款方式","稅額","摘要說明","備註"];
+    const lines = [header.join(",")];
+    list.forEach(t=>{
+      lines.push([t.date, t.type==="income"?"收入":"支出", t.amount, t.category, t.invoiceNo, t.partner, t.payMethod, t.tax, t.desc, t.note].map(csvEscape).join(","));
+    });
+    const blob = new Blob(["﻿"+lines.join("\n")], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (scope==="all" ? "全部交易紀錄" : scope+"月交易紀錄") + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function exportJSON(){
+    if(!confirm("匯出的備份檔案為「未加密」的原始資料，請妥善保管，是否繼續匯出？")) return;
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "公司帳戶備份_" + todayStr() + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function importJSON(file){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const parsed = JSON.parse(e.target.result);
+        if(!parsed.transactions || !parsed.settings) throw new Error("格式不正確");
+        if(!confirm("匯入備份將會覆蓋目前所有資料，確定要繼續嗎？")) return;
+        state = {
+          settings: Object.assign({}, defaultState().settings, parsed.settings),
+          transactions: parsed.transactions
+        };
+        saveState();
+        currentView = "overview";
+        render();
+        alert("匯入成功！資料已使用您目前登入的帳號密碼加密儲存。");
+      }catch(err){
+        alert("匯入失敗：檔案格式不正確");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------- event bindings ----------
+  document.getElementById("btnAdd").addEventListener("click", openAddTxn);
+  document.getElementById("btnSaveTxn").addEventListener("click", saveTxn);
+  document.getElementById("btnDeleteTxn").addEventListener("click", deleteTxn);
+  document.getElementById("btnDuplicateTxn").addEventListener("click", duplicateTxn);
+  document.getElementById("typeIncomeBtn").addEventListener("click", ()=>setType("income"));
+  document.getElementById("typeExpenseBtn").addEventListener("click", ()=>setType("expense"));
+
+  document.getElementById("btnSettings").addEventListener("click", openSettings);
+  document.getElementById("btnSaveSettings").addEventListener("click", saveSettings);
+  document.getElementById("btnUpdateAccount").addEventListener("click", updateAccountSecurity);
+  document.getElementById("companyNameDisplay").addEventListener("click", openSettings);
+  document.getElementById("btnSwitchFile").addEventListener("click", ()=>{ settingsModalBg.classList.remove("show"); pickExistingFile(); });
+  document.getElementById("btnCreateFileFromSettings").addEventListener("click", ()=>{ settingsModalBg.classList.remove("show"); createNewFile(); });
+  document.getElementById("btnLogout").addEventListener("click", logout);
+
+  document.getElementById("btnDoLogin").addEventListener("click", handleLogin);
+  document.getElementById("btnDoSetupAccount").addEventListener("click", handleSetupAccount);
+  document.getElementById("loginPassword").addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleLogin(); });
+  document.getElementById("loginUsername").addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleLogin(); });
+  document.getElementById("setupPasswordConfirm").addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleSetupAccount(); });
+  document.getElementById("setupPassword").addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleSetupAccount(); });
+  document.getElementById("setupUsername").addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleSetupAccount(); });
+
+  document.getElementById("btnUploadLogo").addEventListener("click", ()=>document.getElementById("logoFileInput").click());
+  document.getElementById("logoFileInput").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    e.target.value = "";
+    if(!file) return;
+    if(!file.type.startsWith("image/")){ alert("請選擇圖片檔案"); return; }
+    if(file.size > 3*1024*1024 && !confirm("這張圖片檔案較大，可能會讓資料檔變大，仍要使用嗎？")) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      state.settings.logoDataUrl = ev.target.result;
+      syncLogoPreview();
+      updateHeaderLogo();
+    };
+    reader.onerror = ()=> alert("讀取圖片失敗，請再試一次。");
+    reader.readAsDataURL(file);
+  });
+  document.getElementById("btnRemoveLogo").addEventListener("click", ()=>{
+    state.settings.logoDataUrl = "";
+    syncLogoPreview();
+    updateHeaderLogo();
+  });
+  document.getElementById("logoSizeSlider").addEventListener("input", (e)=>{
+    state.settings.logoHeight = parseInt(e.target.value,10)||24;
+    syncLogoPreview();
+    updateHeaderLogo();
+  });
+
+  document.getElementById("addIncomeCat").addEventListener("click", ()=>{
+    const inp = document.getElementById("newIncomeCat");
+    const v = inp.value.trim();
+    if(v && !state.settings.incomeCategories.includes(v)){ state.settings.incomeCategories.push(v); inp.value=""; renderCatList("incomeCatList","incomeCategories"); }
+  });
+  document.getElementById("addExpenseCat").addEventListener("click", ()=>{
+    const inp = document.getElementById("newExpenseCat");
+    const v = inp.value.trim();
+    if(v && !state.settings.expenseCategories.includes(v)){ state.settings.expenseCategories.push(v); inp.value=""; renderCatList("expenseCatList","expenseCategories"); }
+  });
+
+  document.getElementById("btnExportJSON").addEventListener("click", exportJSON);
+  document.getElementById("btnImportJSON").addEventListener("click", ()=>document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", (e)=>{
+    if(e.target.files[0]) importJSON(e.target.files[0]);
+    e.target.value = "";
+  });
+
+  document.querySelectorAll("[data-close]").forEach(b=>{
+    b.addEventListener("click", ()=> document.getElementById(b.dataset.close).classList.remove("show"));
+  });
+  // Clicking the dimmed backdrop closes most modals, but the add/edit
+  // transaction form and the required auth / data-file connect screens
+  // should only be closed via their explicit buttons — accidentally
+  // clicking outside the transaction form (which can have a lot of
+  // typed-in data) must not silently discard it, and the connect / login /
+  // setup screens are required steps.
+  const CLICK_OUTSIDE_EXEMPT = ["connectScreenBg", "txnModalBg", "loginScreenBg", "setupAccountScreenBg"];
+  document.querySelectorAll(".modal-bg").forEach(bg=>{
+    bg.addEventListener("click", (e)=>{ if(e.target===bg && !CLICK_OUTSIDE_EXEMPT.includes(bg.id)) bg.classList.remove("show"); });
+  });
+
+  // ---------- on-screen numeric keypad ----------
+  const numKeypadEl = document.getElementById("numKeypad");
+  let activeKeypadInput = null;
+
+  function showKeypad(input){
+    activeKeypadInput = input;
+    numKeypadEl.classList.add("show");
+  }
+  function hideKeypad(){
+    numKeypadEl.classList.remove("show");
+    activeKeypadInput = null;
+  }
+  function sanitizeDecimalValue(v){
+    // Keep digits and a single decimal point, in typed order.
+    let out = "";
+    let seenDot = false;
+    for(const ch of v){
+      if(ch>="0" && ch<="9"){ out += ch; }
+      else if(ch==="." && !seenDot){ out += ch; seenDot = true; }
+    }
+    return out;
+  }
+  function attachNumKeypad(input){
+    input.addEventListener("focus", ()=>showKeypad(input));
+    input.addEventListener("click", ()=>showKeypad(input));
+    // Also allow direct typing from a physical keyboard, in addition to
+    // the on-screen keypad — just keep the value restricted to a valid
+    // decimal number as the user types.
+    input.addEventListener("input", ()=>{
+      const clean = sanitizeDecimalValue(input.value);
+      if(clean !== input.value) input.value = clean;
+    });
+  }
+  numKeypadEl.addEventListener("mousedown", (e)=>{ e.preventDefault(); });
+  numKeypadEl.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-key]");
+    if(!btn || !activeKeypadInput) return;
+    const key = btn.dataset.key;
+    let val = activeKeypadInput.value || "";
+    if(key==="back"){ val = val.slice(0,-1); }
+    else if(key==="clear"){ val = ""; }
+    else if(key==="dot"){ if(!val.includes(".")) val += "."; }
+    else if(key==="done"){ hideKeypad(); return; }
+    else { val += key; }
+    activeKeypadInput.value = val;
+    activeKeypadInput.dispatchEvent(new Event("input", {bubbles:true}));
+  });
+  document.addEventListener("click", (e)=>{
+    if(!numKeypadEl.classList.contains("show")) return;
+    if(numKeypadEl.contains(e.target) || e.target===activeKeypadInput) return;
+    hideKeypad();
+  });
+  [document.getElementById("f_amount"), document.getElementById("f_tax"), document.getElementById("s_initialBalance")]
+    .forEach(attachNumKeypad);
+
+  // init
+  initStorage();
+})();
+</script>
+</body>
+</html>
