@@ -221,6 +221,24 @@
   </div>
 </div>
 
+<!-- Confirm edit changes modal -->
+<div class="modal-bg" id="confirmChangeModalBg">
+  <div class="modal">
+    <div class="row"><h2>確認修改內容</h2><button class="close-x" id="btnConfirmChangeClose">✕</button></div>
+    <p class="muted">請核對以下欄位的修改前後內容，確認無誤後再儲存。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>欄位</th><th>修改前</th><th>修改後</th></tr></thead>
+        <tbody id="confirmChangeBody"></tbody>
+      </table>
+    </div>
+    <div class="footer-actions">
+      <button class="primary" id="btnConfirmChangeSave">確認儲存</button>
+      <button id="btnConfirmChangeCancel">返回修改</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings Modal -->
 <div class="modal-bg" id="settingsModalBg">
   <div class="modal">
@@ -1087,6 +1105,63 @@
     txnModalBg.classList.add("show");
   }
 
+  const TXN_FIELD_LABELS = {
+    date:"日期", type:"類型", amount:"金額", category:"類別",
+    payMethod:"付款方式", invoiceNo:"發票/單據號碼", partner:"廠商/客戶",
+    tax:"稅額", desc:"摘要說明", note:"備註"
+  };
+  function fmtTxnFieldValue(key, val){
+    if(key==="type") return val==="income" ? "收入" : "支出";
+    if(val===null || val===undefined || val==="") return "";
+    return String(val);
+  }
+  function buildTxnDiff(oldT, newPayload){
+    const diffs = [];
+    Object.keys(TXN_FIELD_LABELS).forEach(key=>{
+      const oldVal = fmtTxnFieldValue(key, oldT[key]);
+      const newVal = fmtTxnFieldValue(key, newPayload[key]);
+      if(oldVal !== newVal){
+        diffs.push({
+          label: TXN_FIELD_LABELS[key],
+          oldVal: oldVal===""?"（空白）":oldVal,
+          newVal: newVal===""?"（空白）":newVal
+        });
+      }
+    });
+    return diffs;
+  }
+
+  let pendingEditIndex = null;
+  let pendingEditPayload = null;
+  let pendingEditDate = null;
+
+  function showConfirmChangeModal(diffs){
+    const body = document.getElementById("confirmChangeBody");
+    body.innerHTML = diffs.map(d=>`<tr>
+        <td style="font-weight:600;white-space:normal;">${esc(d.label)}</td>
+        <td class="amount-out" style="white-space:normal;">${esc(d.oldVal)}</td>
+        <td class="amount-in" style="white-space:normal;">${esc(d.newVal)}</td>
+      </tr>`).join("");
+    document.getElementById("confirmChangeModalBg").classList.add("show");
+  }
+
+  function applyPendingEdit(){
+    if(pendingEditIndex==null || !pendingEditPayload) return;
+    state.transactions[pendingEditIndex] = Object.assign({}, state.transactions[pendingEditIndex], pendingEditPayload);
+    saveState();
+    document.getElementById("confirmChangeModalBg").classList.remove("show");
+    txnModalBg.classList.remove("show");
+    currentView = monthKeyOf(pendingEditDate);
+    pendingEditIndex = null; pendingEditPayload = null; pendingEditDate = null;
+    render();
+  }
+
+  function cancelPendingEdit(){
+    pendingEditIndex = null; pendingEditPayload = null; pendingEditDate = null;
+    document.getElementById("confirmChangeModalBg").classList.remove("show");
+    // Leave the transaction form open so the user can keep adjusting values.
+  }
+
   function saveTxn(){
     const date = document.getElementById("f_date").value || todayStr();
     const amount = parseFloat(document.getElementById("f_amount").value);
@@ -1103,12 +1178,22 @@
     };
     if(editingId){
       const idx = state.transactions.findIndex(x=>x.id===editingId);
-      if(idx>-1) state.transactions[idx] = Object.assign({}, state.transactions[idx], payload);
-    } else {
-      payload.id = genId();
-      payload._seq = Date.now();
-      state.transactions.push(payload);
+      if(idx===-1) return;
+      const diffs = buildTxnDiff(state.transactions[idx], payload);
+      if(diffs.length===0){
+        // Nothing actually changed — just close without bothering the user.
+        txnModalBg.classList.remove("show");
+        return;
+      }
+      pendingEditIndex = idx;
+      pendingEditPayload = payload;
+      pendingEditDate = date;
+      showConfirmChangeModal(diffs);
+      return;
     }
+    payload.id = genId();
+    payload._seq = Date.now();
+    state.transactions.push(payload);
     saveState();
     txnModalBg.classList.remove("show");
     currentView = monthKeyOf(date);
@@ -1298,6 +1383,9 @@
   document.getElementById("btnSaveTxn").addEventListener("click", saveTxn);
   document.getElementById("btnDeleteTxn").addEventListener("click", deleteTxn);
   document.getElementById("btnDuplicateTxn").addEventListener("click", duplicateTxn);
+  document.getElementById("btnConfirmChangeSave").addEventListener("click", applyPendingEdit);
+  document.getElementById("btnConfirmChangeCancel").addEventListener("click", cancelPendingEdit);
+  document.getElementById("btnConfirmChangeClose").addEventListener("click", cancelPendingEdit);
   document.getElementById("typeIncomeBtn").addEventListener("click", ()=>setType("income"));
   document.getElementById("typeExpenseBtn").addEventListener("click", ()=>setType("expense"));
 
@@ -1371,7 +1459,7 @@
   // clicking outside the transaction form (which can have a lot of
   // typed-in data) must not silently discard it, and the connect / login /
   // setup screens are required steps.
-  const CLICK_OUTSIDE_EXEMPT = ["connectScreenBg", "txnModalBg", "loginScreenBg", "setupAccountScreenBg"];
+  const CLICK_OUTSIDE_EXEMPT = ["connectScreenBg", "txnModalBg", "loginScreenBg", "setupAccountScreenBg", "confirmChangeModalBg"];
   document.querySelectorAll(".modal-bg").forEach(bg=>{
     bg.addEventListener("click", (e)=>{ if(e.target===bg && !CLICK_OUTSIDE_EXEMPT.includes(bg.id)) bg.classList.remove("show"); });
   });
